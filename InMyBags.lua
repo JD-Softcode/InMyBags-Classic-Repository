@@ -7,6 +7,8 @@ SLASH_JADBAGLIST1  = "/imb"			--show the In My Bags window; optionally follow wi
 									--    NEW in 1.3: shift-click an inventory item to search for it
 
 
+JADInMyBags = {}				-- function namespace
+
 --You can change these names but will need to reset/rebuild the database for all characters when you do
 MAIN_BANK_BAG_NAME  = "Main bank"
 OTHER_BANK_BAG_NAME = "Bank bag"
@@ -18,34 +20,37 @@ JADBagInventory = {}			-- saved variable, hold all the inventory data
 JADBagDisplay = {}				-- built each time the window is displayed
 JADBankWindowOpen = 0			-- toggles whenever the bank window is opened or closed
 JADBagConfirmReset = 0			-- toggles to ensure reset is entered twice
-JADMatchString = ""				-- the search string, if <> ""
+JADMatchString = ""				-- the search string, if ~= ""
+JADMatchStringSafe = ""			-- set same as above but with all hyphens escaped with % characters for pattern matching
 _NoErr = 0						-- named constant
+
+
+-- #####################################
+-- ##      /imbscan                   ##
+-- #####################################
 
 SlashCmdList["JADBAGSCAN"] = function(msg, theEditFrame)			-- /imbscan
 	local bag, slot, result, bagslots, bagstart, bagstop
 
 	InMyBags:Hide();
-
 		--BANK_CONTAINER Main storage area in the bank (-1)
 		--BACKPACK_CONTAINER: Backpack (0)
-		--1 through NUM_BAG_SLOTS: Bag slots (as presented in the default UI, numbered right to left)
+		--1 through NUM_BAG_SLOTS: Bag slots (as presented in the default UI, numbered right(!) to left)
 		--NUM_BAG_SLOTS + 1 through NUM_BAG_SLOTS + NUM_BANKBAGSLOTS: Bank bag slots (as presented in the default UI, numbered left to right)
-
 	if (JADBankWindowOpen > 0)  then
 		bagslots = NUM_BAG_SLOTS + NUM_BANKBAGSLOTS + 2
 		bagstart = -1		
 		bagstop = NUM_BAG_SLOTS + NUM_BANKBAGSLOTS
-		result = purgeCharacterEntries("all")
-	else		-- bank window is not open
+		result = JADInMyBags:purgeCharacterEntries("all")
+	else		-- bank window is not open					-- NEW in 1.4
 		bagslots = NUM_BAG_SLOTS + 1
-		bagstart = 0
+		bagstart = BACKPACK_CONTAINER
 		bagstop = NUM_BAG_SLOTS		
-		result = purgeCharacterEntries("nobank")
+		result = JADInMyBags:purgeCharacterEntries("nobank")
 	end
 	
-	if (result == _NoErr) then
-
-		ChatFrame1:AddMessage( "In My Bags cataloging items from "..bagslots.." containers." )
+	if (result == _NoErr) then 
+		--print( "In My Bags cataloging items from "..bagslots.." containers." )
 		for bag = bagstart, bagstop do
 	--	ChatFrame1:AddMessage( "Bag "..bag.." has "..GetContainerNumSlots(bag).." slots")
 			for slot = 1, GetContainerNumSlots(bag) do
@@ -55,26 +60,29 @@ SlashCmdList["JADBAGSCAN"] = function(msg, theEditFrame)			-- /imbscan
 	--				name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture, vendorPrice = GetItemInfo("itemLink")
 	--													   ^^ as in AH ^^
 					table.insert(JADBagInventory, {
-						["name"]		= name,
+						["name"]		= format("%q",name),
 						["holder"]		= UnitName("player"),
 						["quantity"]	= count,
 						["detailLink"]	= link,
-						["heldIn"]		= translateBagID(bag)
+						["heldIn"]		= JADInMyBags:translateBagID(bag)
 						}
 						)
 				end
 			end
 		end
-	
-		--ChatFrame1:AddMessage( "JADBagInventory is now "..#JADBagInventory)
-		consolidateLikeItems(UnitName("player"))
+		JADInMyBags:consolidateLikeItems(UnitName("player"))
 		ChatFrame1:AddMessage( "In My Bags database updated. Now tracking "..#JADBagInventory.." items.")
 	else
 		ChatFrame1:AddMessage( "An error occured trying to reset "..UnitName("player").."'s inventory" )
 	end
-		
 	JADBagConfirmReset = 0					--reset delete confirmation flag on any other command
 end
+
+
+
+-- #####################################
+-- ##      /imbreset                  ##
+-- #####################################
 
 SlashCmdList["JADBAGRESET"] = function(msg, theEditFrame)		--  /imbreset
 	if ( JADBagConfirmReset > 0 ) then
@@ -86,6 +94,12 @@ SlashCmdList["JADBAGRESET"] = function(msg, theEditFrame)		--  /imbreset
 		JADBagConfirmReset = 1
 	end
 end
+
+
+
+-- #####################################
+-- ##      /imb                       ##
+-- #####################################
 
 SlashCmdList["JADBAGLIST"] = function(msg, theEditFrame)		--  /imb,  /imb me,  /imb Name,  /imb xxx
 	local showNameList = 0
@@ -109,54 +123,52 @@ SlashCmdList["JADBAGLIST"] = function(msg, theEditFrame)		--  /imb,  /imb me,  /
 	end
 	
 	if (showNameList == 1) then
-		showTheList(msg)
+		JADInMyBags:showTheList(msg)
 	else
-		if ( msg and string.find(msg, "Hitem") ) then			-- is not nil & a link?
+		if ( msg and string.find(msg, "Hitem") ) then			-- is not nil & is a link?
 			local linkExtractStart = string.find(msg, "|h%[") + 3
 			local linkExtractStop  = string.find(msg, "%]|h") - 1
 			msg = string.sub(msg, linkExtractStart,  linkExtractStop)
 		end
 		
 		JADMatchString = ( msg or "" )    -- the message, unless it's nil then make it ""
-		showTheList()
+		JADInMyBags:showTheList()
 	end
 	JADBagConfirmReset = 0				  --reset delete confirmation flag on any other command
 end
 
-function InMyBags_OnLoad(frame)
+
+function JADInMyBags:OnLoad()
+	f = InMyBags
 --	frame:RegisterEvent("ADDON_LOADED")	-- ready to process saved data
-	frame:RegisterEvent("PLAYER_ENTERING_WORLD")	-- everything ready
-	frame:RegisterEvent("BANKFRAME_OPENED")	-- when the bank is opened
-	frame:RegisterEvent("BANKFRAME_CLOSED")	-- when the bank is closed
+	f:RegisterEvent("PLAYER_ENTERING_WORLD")	-- everything ready
+	f:RegisterEvent("BANKFRAME_OPENED")	-- when the bank is opened
+	f:RegisterEvent("BANKFRAME_CLOSED")	-- when the bank is closed
 --	frame:RegisterEvent("BAG_OPEN")	-- when a bag is opened // no longer being sent in 4.3
 --	frame:RegisterEvent("BAG_UPDATE")	-- when contents of a bag change; FUTURE OPPORTUNITY
-	frame:RegisterForDrag("LeftButton")
+	f:RegisterForDrag("LeftButton")
 end
 
-function InMyBags_OnEvent(frame, event, arg1, ...)
 
+function JADInMyBags:OnEvent(event, arg1, ...)
 	if event == "PLAYER_ENTERING_WORLD" then			-- set stuff up
 		InMyBagsTitleText:SetText("In My Bags")
 		InMyBagsPortrait:SetTexture("Interface\\MERCHANTFRAME\\UI-BuyBack-Icon")
 		JADBankWindowOpen = 0							-- bank is always closed on /reload
 		table.insert(UISpecialFrames, "InMyBags")		--makes it close with ESC key (silently)
-	end		
-
-	if event == "BANKFRAME_OPENED" then
+	elseif event == "BANKFRAME_OPENED" then
 		JADBankWindowOpen = 1
-	end		
-
-	if event == "BANKFRAME_CLOSED" then
+	elseif event == "BANKFRAME_CLOSED" then
 		JADBankWindowOpen = 0
 	end		
 end
 
 
-function translateBagID (bag)
+function JADInMyBags:translateBagID (bag)
 	local itemSource
-	if (bag == -1) then
+	if (bag == BANK_CONTAINER) then
 		itemSource = MAIN_BANK_BAG_NAME
-	elseif (bag == 0) then
+	elseif (bag == BACKPACK_CONTAINER) then
 		itemSource = BACKPACK_BAG_NAME
 	elseif (bag <= NUM_BAG_SLOTS) then
 		itemSource = ON_PERSON_BAG_NAME
@@ -166,7 +178,8 @@ function translateBagID (bag)
 	return itemSource
 end
 
-function purgeCharacterEntries(purgeType)
+
+function JADInMyBags:purgeCharacterEntries(purgeType)
 	local total = #JADBagInventory
 	if (total > 0) then 
 		for i = #JADBagInventory, 1, -1 do		--count backwards else the list shrinks while it's counting up
@@ -184,46 +197,47 @@ function purgeCharacterEntries(purgeType)
 	return _NoErr
 end
 
-function buildListForDisplay(limitTo)
+
+function JADInMyBags:buildListForDisplay(limitTo)
 	JADBagDisplay = {}		--start over; reset table
 	--local countAdded = 0
 	--local countAppended = 0
 	local totalVendorValue = 0
 	local money = 0
 	
+	JADMatchStringSafe = string.gsub(string.lower(JADMatchString), "%-", "%%%-") -- hyphens cannot be used in lua find search patterns without escaping
+			-- this code replaces all '-' with '%-'
 	for i = 1 , #JADBagInventory do
 		if ( (limitTo==nil) or ( JADBagInventory[i].holder == limitTo) ) then
+			if ( (JADMatchString == "") or string.find(string.lower(JADBagInventory[i].name),JADMatchStringSafe) ) then
 		
-			if ( (JADMatchString == "") or string.find(string.lower(JADBagInventory[i].name),string.lower(JADMatchString)) ) then
-		
-				displayListFoundLine = itemAlreadyInDisplayList(JADBagInventory[i].name)
+				displayListFoundLine = self:itemAlreadyInDisplayList(JADBagInventory[i].name)
 				
 				if ( displayListFoundLine > 0 ) then
-					appendPlayerInventory(	displayListFoundLine,
-											JADBagInventory[i].holder,
-											JADBagInventory[i].quantity,
-											JADBagInventory[i].heldIn
-											);
+					self:appendPlayerInventory(	displayListFoundLine,
+												JADBagInventory[i].holder,
+												JADBagInventory[i].quantity,
+												JADBagInventory[i].heldIn
+												);
 					--countAppended = countAppended + 1
 				else
-					addPlayerInventory(		JADBagInventory[i].name,
-											JADBagInventory[i].holder,
-											JADBagInventory[i].quantity,
-											JADBagInventory[i].detailLink,
-											JADBagInventory[i].heldIn
-											);
+					self:addPlayerInventory( JADBagInventory[i].name,
+											 JADBagInventory[i].holder,
+											 JADBagInventory[i].quantity,
+											 JADBagInventory[i].detailLink,
+											 JADBagInventory[i].heldIn
+											 );
 					--countAdded = countAdded + 1
 				end
-			
 			end
-			
 			money = select(11, GetItemInfo(JADBagInventory[i].detailLink))		--can sometimes return nil, so...
 			if (money) then
 				totalVendorValue = totalVendorValue + money
 			end			
 		end
 	end
-	table.sort(JADBagDisplay,nameSort)
+	
+	table.sort(JADBagDisplay, function(item1, item2) return item1.itemName < item2.itemName end )
 	
 	if (JADMatchString == "") then
 		InMyBagsVendor:SetText("Total vendor value:|n"..GetCoinTextureString(totalVendorValue))
@@ -235,17 +249,9 @@ function buildListForDisplay(limitTo)
 	return _NoErr
 end
 	
-function nameSort(item1, item2)
-	if (item1.itemName < item2.itemName) then
-		return true
-	else
-		return false
-	end
-end
-
-function addPlayerInventory(theName, theHolder, theQuantity, theLink, theBag)
+	
+function JADInMyBags:addPlayerInventory(theName, theHolder, theQuantity, theLink, theBag)
 	--local bagIcon = "|TInterface\\ICONS\\INV_Misc_Bag_08:16:16:0:1|t"
-
 	if (theHolder == UnitName("player")) then
 		theHolder = "|cffffffdd" .. theHolder		--hilight in color the current player's name and inventory
 	end
@@ -259,37 +265,39 @@ function addPlayerInventory(theName, theHolder, theQuantity, theLink, theBag)
 		["itemName"]	= theName,
 		["icon"]		= theTexture,
 		["hyperlink"]	= theLink,
-		["holders"]		= theHolder .. ": " .. theQuantity .. " in " .. graphicBag(theBag) .."|r",
+		["holders"]		= theHolder .. ": " .. theQuantity .. " in " .. self:graphicBag(theBag) .."|r",
 				-- the |r reset is here in case of the color shift from a few lines above, otherwise ignored
 		["totalCount"]	= theQuantity
 		}
 		)
 end
 
-function appendPlayerInventory(lineNum, theHolder, theQuantity, theBag)
+
+function JADInMyBags:appendPlayerInventory(lineNum, theHolder, theQuantity, theBag)
 	if (theHolder == UnitName("player")) then
 		theHolder = "|cffffffdd" .. theHolder 
 	end
-	JADBagDisplay[lineNum].holders = JADBagDisplay[lineNum].holders .. ", " .. theHolder .. ": " .. theQuantity .. " in " .. graphicBag(theBag) .."|r"
+	JADBagDisplay[lineNum].holders = JADBagDisplay[lineNum].holders .. ", " .. theHolder .. ": " .. theQuantity .. " in " .. self:graphicBag(theBag) .."|r"
 	JADBagDisplay[lineNum].totalCount = JADBagDisplay[lineNum].totalCount + theQuantity
 end
 
-function graphicBag(theBag)
+
+function JADInMyBags:graphicBag(theBag)
 	local bagTexture
 	if (theBag == MAIN_BANK_BAG_NAME) then
-		bagTexture = "ACHIEVEMENT_GUILDPERK_MOBILEBANKING"
+		bagTexture = "ACHIEVEMENT_GUILDPERK_MOBILEBANKING"		-- wooden chest opening showing gold coins
 	elseif (theBag == OTHER_BANK_BAG_NAME) then
-		bagTexture = "INV_Misc_Bag_10_Red"
+		bagTexture = "INV_Misc_Bag_10_Red"						-- plump red bag tied shut (Santa-style)
 	elseif (theBag == BACKPACK_BAG_NAME) then
-		bagTexture = "INV_Misc_Bag_08"
+		bagTexture = "INV_Misc_Bag_08"							-- leather backpack with buckle
 	else
-		bagTexture = "INV_Misc_Bag_09_Blue"
+		bagTexture = "INV_Misc_Bag_09_Blue"						-- blue bag attached to a belt
 	end
 	return "|TInterface\\ICONS\\"..bagTexture..":17:17:0:0|t"..theBag
 end
 
 
-function itemAlreadyInDisplayList(theNameSeeking)
+function JADInMyBags:itemAlreadyInDisplayList(theNameSeeking)
 	local foundAt = 0
 	local displaySize = #JADBagDisplay
 	if (displaySize > 0 ) then
@@ -303,13 +311,12 @@ function itemAlreadyInDisplayList(theNameSeeking)
 	return foundAt
 end
 
-function consolidateLikeItems(playerName)
+
+function JADInMyBags:consolidateLikeItems(playerName)
 	local startSize = #JADBagInventory
 	--local playerCheckCount=0
 	--local purged = 0
-	
 	local compareline = 1
-	
 	repeat
 		if ( JADBagInventory[compareline].holder == playerName) then
 			--playerCheckCount = playerCheckCount + 1
@@ -330,9 +337,11 @@ function consolidateLikeItems(playerName)
 	return _NoErr
 end
 
+
 --**********************************************************
-function showTheList(playerName)
-	buildListForDisplay(playerName);				--create the JADBagDisplay table
+
+function JADInMyBags:showTheList(playerName)
+	self:buildListForDisplay(playerName);				--create the JADBagDisplay table
 	InMyBags:Show();
 	
 	InMyBagsScrollFrameScrollBar:SetValue(1);
@@ -344,11 +353,11 @@ function showTheList(playerName)
 		InMyBagsScrollFrameScrollBar.scrollStep = 1;
 		
 	end
-
-	paintTheLines(1)
+	self:paintTheLines(1)
 end
 
-function paintTheLines(startLine)
+
+function JADInMyBags:paintTheLines(startLine)
 	if ( startLine+8 > #JADBagDisplay) then			-- last list item never above the bottom...
 		startLine = #JADBagDisplay - 8
 	end
@@ -384,12 +393,13 @@ function paintTheLines(startLine)
 	end	
 end
 
-function InMyBagsItem_OnMouseEnter(self)
-	local original = self:GetName()
+
+function JADInMyBags:Item_OnMouseEnter(thisLine)
+	local original = thisLine:GetName()
 	-- turn InMyBagsLine0xLineIcon  into  InMyBagsLine0xLineHyperlink
 	local converted = string.gsub(original, "Icon", "Hyperlink")
 	if ( _G[converted]:GetText() ) then 	--not nil
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetOwner(thisLine, "ANCHOR_RIGHT")
 		GameTooltip:SetHyperlink(_G[converted]:GetText())
 		GameTooltip:Show()
 	else
@@ -397,14 +407,13 @@ function InMyBagsItem_OnMouseEnter(self)
 	end
 end
 
-function InMyBagsFrameBrowse_Update()		--can be called anytime, but always when scroll bar clicked/scrolled
+
+function JADInMyBags:FrameBrowse_Update()		--can be called anytime, but always when scroll bar clicked/scrolled
 
 	local totalItems = #JADBagDisplay;
 	local scrollPosit = InMyBagsScrollFrameScrollBar:GetValue();
-	local minScroll
-	local maxScroll
-	minScroll, maxScroll = InMyBagsScrollFrameScrollBar:GetMinMaxValues();
-
+	local minScroll, maxScroll = InMyBagsScrollFrameScrollBar:GetMinMaxValues();
+	
 	if (scrollPosit > minScroll) then
 		InMyBagsScrollFrameScrollBarScrollUpButton:Enable();
 	else
@@ -417,13 +426,12 @@ function InMyBagsFrameBrowse_Update()		--can be called anytime, but always when 
 		InMyBagsScrollFrameScrollBarScrollDownButton:Disable();
 	end
 
-	paintTheLines(math.floor(scrollPosit))
+	self:paintTheLines(math.floor(scrollPosit))
 	
 	local checkUnderMouse = GetMouseFocus():GetName();
-	if ( string.sub(checkUnderMouse,-8) == "LineIcon" ) then			--RIGHT$
-		InMyBagsItem_OnMouseEnter(GetMouseFocus())						--update the tooltip
+	if ( checkUnderMouse and string.sub(checkUnderMouse,-8) == "LineIcon" ) then			--RIGHT$
+		JADInMyBags:Item_OnMouseEnter(GetMouseFocus())						--update the tooltip
 	end
 
---	ChatFrame1:AddMessage( "In the LUA update function with scroller at " .. minScroll.."-->"..scrollPosit.."-->"..maxScroll )
 end
 

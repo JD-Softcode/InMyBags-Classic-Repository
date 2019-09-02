@@ -1,11 +1,10 @@
 ## Interface: 50300
-## Title: In My Bags 1.4
-## Version: 1.4
-## Notes: Lightweight realm pooled bag inventory tool. By Waldokind
+## Title: In My Bags Classic 1.11
+## Version: 1.11
+## Notes: Lightweight pooled realm character bag inventory tool. By Waldokind
 ## SavedVariables: JADBagInventory
-
-## Author: waldokind@earthlink.net
-
+## Author: waldokind@jdsoftcode.net
+## X-Website: http://www.jdsoftcode.net
 
 InMyBags.lua
 InMyBagsTemplates.xml

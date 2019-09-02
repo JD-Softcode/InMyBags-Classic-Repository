@@ -14,15 +14,15 @@
 			<FontString inherits="GameFontNormalLarge" justifyV="MIDDLE" setAllPoints="true" text="Item">
 				<Size x="100" y="36" />
 				<Anchors>
-					<Anchor point="TOPLEFT" relativePoint="TOPLEFT" relativeTo="$parentTopLeftCorner" >
+					<Anchor point="TOPLEFT" relativePoint="TOPLEFT" relativeTo="$parent" >
 						<Offset x="70" y="-34" />
 					</Anchor>
 				</Anchors>
 			</FontString>				
-			<FontString inherits="GameFontNormalLarge" justifyV="MIDDLE" setAllPoints="true" text="Possessed by:">
+			<FontString inherits="GameFontNormalLarge" justifyV="MIDDLE" setAllPoints="true" text="Held by">
 				<Size x="150" y="36" />
 				<Anchors>
-					<Anchor point="TOPLEFT" relativePoint="TOPLEFT" relativeTo="$parentTopLeftCorner" >
+					<Anchor point="TOPLEFT" relativePoint="TOPLEFT" relativeTo="$parent" >
 						<Offset x="320" y="-34" />
 					</Anchor>
 				</Anchors>
@@ -40,10 +40,10 @@
 
 	<Scripts>
 		<OnLoad>
-			InMyBags_OnLoad(self)
+			JADInMyBags:OnLoad()
 		</OnLoad>
 		<OnEvent>
-			InMyBags_OnEvent(self, event, ...)
+			JADInMyBags:OnEvent(event, ...)
 		</OnEvent>
 		<OnShow>
 			PlaySound("igCharacterInfoOpen");
@@ -65,7 +65,7 @@
 
 		<Frame name="InMyBagsFrame01" inherits="InMyBagsLineFrameTemplate">
 			<Anchors>
-				<Anchor point="TOPLEFT" relativePoint="TOPLEFT" relativeTo="$parentTopLeftCorner" >
+				<Anchor point="TOPLEFT" relativePoint="TOPLEFT" relativeTo="$parent" >
 					<Offset x="20" y="-70" />
 				</Anchor>
 			</Anchors>
@@ -251,7 +251,7 @@
 			<Scripts>
 				<OnVerticalScroll>
 					--FauxScrollFrame_OnVerticalScroll(self, offset, 37, InMyBagsFrameBrowse_Update);
-					InMyBagsFrameBrowse_Update();
+					JADInMyBags:FrameBrowse_Update();
 				</OnVerticalScroll>
 			</Scripts>
 		</ScrollFrame>
