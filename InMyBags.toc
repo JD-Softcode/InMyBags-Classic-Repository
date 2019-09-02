@@ -1,5 +1,5 @@
-## Interface: 50300
-## Title: In My Bags Classic 1.11
+## Interface: 11302
+## Title: In My Bags 1.11 for Classic
 ## Version: 1.11
 ## Notes: Lightweight pooled realm character bag inventory tool. By Waldokind
 ## SavedVariables: JADBagInventory
