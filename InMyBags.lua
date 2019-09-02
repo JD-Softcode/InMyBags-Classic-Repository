@@ -285,7 +285,8 @@ end
 function JADInMyBags:graphicBag(theBag)
 	local bagTexture
 	if (theBag == MAIN_BANK_BAG_NAME) then
-		bagTexture = "ACHIEVEMENT_GUILDPERK_MOBILEBANKING"		-- wooden chest opening showing gold coins
+		--bagTexture = "ACHIEVEMENT_GUILDPERK_MOBILEBANKING"	-- wooden chest opening showing gold coins
+		bagTexture = "INV_Misc_Bag_13"							-- squarish brown backpack with red glow
 	elseif (theBag == OTHER_BANK_BAG_NAME) then
 		bagTexture = "INV_Misc_Bag_10_Red"						-- plump red bag tied shut (Santa-style)
 	elseif (theBag == BACKPACK_BAG_NAME) then
